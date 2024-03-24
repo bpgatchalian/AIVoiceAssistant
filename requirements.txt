@@ -1,6 +1,6 @@
 gtts==2.5.1
 numpy==1.26.4
-openai==0.28.0
+openai==1.14.2
 playsound==1.2.2
 PyAudio==0.2.14
 webrtcvad==2.0.10
