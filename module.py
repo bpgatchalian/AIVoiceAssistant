@@ -1,5 +1,5 @@
 import os
-import openai
+from openai import OpenAI
 from gtts import gTTS
 from playsound import playsound
 from dotenv import load_dotenv
@@ -30,16 +30,16 @@ class LargeLanguageModelAPI:
     
     def run_gpt(self, text):
 
-        openai.api_key = self.openai_key
-        
-        response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",  
+        client = OpenAI(api_key=self.openai_key)
+
+        completion = client.chat.completions.create(
+        model="gpt-3.5-turbo",
         messages=[
-            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "system", "content": "You are an helpful assistant."},
             {"role": "user", "content": text}
         ]
         )
 
-        print(response['choices'][0]['message']['content'])
+        print(completion.choices[0].message.content)
 
-        return response['choices'][0]['message']['content']
+        return completion.choices[0].message.content
