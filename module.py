@@ -1,8 +1,11 @@
 import os
-from openai import OpenAI
+import openai
+import time
 from gtts import gTTS
 from playsound import playsound
 from dotenv import load_dotenv
+
+import requests
 
 load_dotenv()
 
@@ -23,6 +26,44 @@ class TextToSpeech:
 
         os.remove(audio_file)
 
+class TTSBry:
+    def __init__(self, url):
+        self.url = url
+
+    def save_wav_file(self, response_content, filename):
+        with open(filename, 'wb') as f:
+            f.write(response_content)
+
+    def play_wav_file(self, filename):
+        playsound(filename)
+
+    def delete_wav_file(self, filename):
+        os.remove(filename)
+
+    def make_request(self, payload):
+        response = requests.post(self.url, json=payload)
+        return response
+
+    def speak_text(self, payload):
+        response = self.make_request(payload)
+        if response.status_code == 200:
+            filename = 'output.wav'
+            self.save_wav_file(response.content, filename)
+            self.play_wav_file(filename)
+            time.sleep(2)  # Adjust sleep time as needed
+            self.delete_wav_file(filename)
+            print("File played and deleted successfully.")
+        else:
+            print(f"Error: {response.status_code} - {response.text}")
+
+"""
+def main():
+    url = 'YOUR_API_ENDPOINT_HERE'
+    payload = {"text": "hello there!"}
+    handler = ApiRequestHandler(url)
+    handler.speak_text(payload)
+"""
+
 class LargeLanguageModelAPI:
 
     def __init__(self):
@@ -30,16 +71,29 @@ class LargeLanguageModelAPI:
     
     def run_gpt(self, text):
 
-        client = OpenAI(api_key=self.openai_key)
+        openai.api_key = self.openai_key
+        
+        custom_prompt = """    
+        You are a Scrum Master for SP Madrid. Your name is Carlo. The company has Software Developers. 
+        The software developers are Bryner, Joshua, Julius, Kevin, Lamby, Jason, Johnmel, and Jerome.
+        """
+        
+        
+        prompt = "You are a helpful assistant"
 
-        completion = client.chat.completions.create(
-        model="gpt-3.5-turbo",
+
+        collection_prompt = """
+"""
+        response = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",  
         messages=[
-            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "system", "content": prompt},
             {"role": "user", "content": text}
-        ]
+        ],
+        temperature=0.001,
+        max_tokens=100
         )
 
-        print(completion.choices[0].message.content)
+        print(response['choices'][0]['message']['content'])
 
-        return completion.choices[0].message.content
+        return response['choices'][0]['message']['content']
