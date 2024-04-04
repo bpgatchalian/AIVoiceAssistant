@@ -23,8 +23,8 @@ class AIVoiceAssistant:
                  padding_duration_ms=500, 
                  model='gpt-3.5-turbo', 
                  language='en',
-                 wake_word='hello',
-                 sleep_word='goodbye'):
+                 wake_word="",
+                 sleep_word=""):
         
         self.tts = TextToSpeech()
         self.llm = LargeLanguageModelAPI()
@@ -50,6 +50,8 @@ class AIVoiceAssistant:
         self.is_awake = False
         self.wake_word = wake_word
         self.sleep_word = sleep_word
+        if self.wake_word == "":
+            self.is_awake=True
 
     def find_microphone(self):
         keywords = ["Microphone", "Mic", "Input", "Line In"]
@@ -100,13 +102,11 @@ class AIVoiceAssistant:
                 if self.is_awake:
                     self.add_message('user', text)
                     if self.sleep_word in text.lower():
-                        #text_to_speak = "Goodbye."
                         text_to_speak = self.llm.run_gpt(messages=self.messages, model=self.model)
                         print(text_to_speak)
                         self.tts.run_speech(text_to_speak, self.language)
                         self.is_awake = False
                     else:
-                        #text_to_speak = "your wish is my command."
                         text_to_speak = self.llm.run_gpt(messages=self.messages, model=self.model)
                         print(text_to_speak)
                         self.tts.run_speech(text_to_speak, self.language)
@@ -115,7 +115,6 @@ class AIVoiceAssistant:
                     if self.wake_word in text.lower():
                         self.messages = self.messages[:1]
                         self.add_message('user', text)
-                        #text_to_speak = "hello, how may I assist you today?"
                         text_to_speak = self.llm.run_gpt(messages=self.messages, model=self.model)
                         print(text_to_speak)
                         self.tts.run_speech(text_to_speak, self.language)
