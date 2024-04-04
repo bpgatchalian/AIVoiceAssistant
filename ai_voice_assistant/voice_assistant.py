@@ -10,11 +10,25 @@ from gtts import gTTS
 from playsound import playsound
 from dotenv import load_dotenv
 
+import torch  # Assuming PyTorch is installed for Silero
+
+import json
 load_dotenv()
 
 class AIVoiceAssistant:
-
-    def __init__(self, vad_mode=1, item_limit=None, system_prompt="You are an AI Assistant.", channels=1, rate=16000, chunk_duration_ms=30, padding_duration_ms=500, model='gpt-3.5-turbo', language='en'):
+    def __init__(self, 
+                 vad_mode=1, 
+                 item_limit=None, 
+                 system_prompt="You are an AI Assistant.", 
+                 channels=1, 
+                 rate=16000, 
+                 chunk_duration_ms=30, 
+                 padding_duration_ms=500, 
+                 model='gpt-3.5-turbo', 
+                 language='en',
+                 wake_word='hello',
+                 sleep_word='goodbye'):
+        
         self.tts = TextToSpeech()
         self.llm = LargeLanguageModelAPI()
         self.vad = webrtcvad.Vad(vad_mode)
@@ -34,9 +48,11 @@ class AIVoiceAssistant:
         self.system_prompt = system_prompt
         self.messages = [{"role": "system", "content": self.system_prompt}]
         self.item_limit = item_limit
-
         self.model = model
         self.language = language
+        self.is_awake = False
+        self.wake_word = wake_word
+        self.sleep_word = sleep_word
 
     def find_microphone(self):
         keywords = ["Microphone", "Mic", "Input", "Line In"]
@@ -84,16 +100,42 @@ class AIVoiceAssistant:
 
                 print(f"Transcription: {text}")
 
-                self.add_message('user', text)
-
-                text_to_speak = self.llm.run_gpt(self.messages, self.model)
                 
-                print(text_to_speak)
 
-                self.add_message('assistant', text_to_speak)
+                if self.is_awake:
+                    self.add_message('user', text)
+                    if self.sleep_word in text.lower():
+                        #text_to_speak = "Goodbye."
+                        text_to_speak = self.llm.run_gpt(messages=self.messages, model=self.model)
+                        print(text_to_speak)
+                        self.tts.run_speech(text_to_speak, self.language)
+                        self.is_awake = False
+                    else:
+                        #text_to_speak = "your wish is my command."
+                        text_to_speak = self.llm.run_gpt(messages=self.messages, model=self.model)
+                        print(text_to_speak)
+                        self.tts.run_speech(text_to_speak, self.language)
+                    self.add_message('assistant', text_to_speak)
+                else:
+                    if self.wake_word in text.lower():
+                        self.messages = self.messages[:1]
+                        self.add_message('user', text)
+                        #text_to_speak = "hello, how may I assist you today?"
+                        text_to_speak = self.llm.run_gpt(messages=self.messages, model=self.model)
+                        print(text_to_speak)
+                        self.tts.run_speech(text_to_speak, self.language)
+                        self.is_awake = True
+                        self.add_message('assistant', text_to_speak)
+                    else:
+                        text_to_speak = "(YOU ARE ASLEEP DO NOT RESPOND)"
 
-                self.tts.run_speech(text_to_speak, self.language)
+                
 
+                
+
+                
+                with open('messages.json', 'w') as w:
+                    json.dump(self.messages, w, indent=2)
             except sr.UnknownValueError:
                 print("Unable to understand speech")
             except sr.RequestError as e:
@@ -104,6 +146,7 @@ class AIVoiceAssistant:
         voiced_frames = []
         triggered = False
         print("Listening...")
+        print(f"device_index: {self.device_index}\ndevice_name: {self.device_name}")
         try:
             while True:
                 chunk = self.stream.read(self.CHUNK_SIZE)
@@ -112,6 +155,7 @@ class AIVoiceAssistant:
                 if not triggered:
                     ring_buffer.append(chunk)
                     if len([frame for frame in ring_buffer if self.vad.is_speech(frame, self.RATE)]) > 0.9 * ring_buffer.maxlen:
+                        print("Start Recording")
                         triggered = True
                         voiced_frames = list(ring_buffer)
                         ring_buffer.clear()
@@ -119,6 +163,7 @@ class AIVoiceAssistant:
                     voiced_frames.append(chunk)
                     ring_buffer.append(chunk)
                     if len([frame for frame in ring_buffer if not self.vad.is_speech(frame, self.RATE)]) > 0.9 * ring_buffer.maxlen:
+                        print("End Recording")
                         triggered = False
                         self.save_and_process(voiced_frames)
                         voiced_frames = []
@@ -129,6 +174,7 @@ class AIVoiceAssistant:
     
     def save_and_process(self, voiced_frames):
         audio_data = self.save_speech(voiced_frames, self.RATE)
+        print('saved speech')
         self.transcribe_audio(audio_data)
 
 class TextToSpeech:
