@@ -10,9 +10,6 @@ from gtts import gTTS
 from playsound import playsound
 from dotenv import load_dotenv
 
-import torch  # Assuming PyTorch is installed for Silero
-
-import json
 load_dotenv()
 
 class AIVoiceAssistant:
@@ -100,8 +97,6 @@ class AIVoiceAssistant:
 
                 print(f"Transcription: {text}")
 
-                
-
                 if self.is_awake:
                     self.add_message('user', text)
                     if self.sleep_word in text.lower():
@@ -129,13 +124,6 @@ class AIVoiceAssistant:
                     else:
                         text_to_speak = "(YOU ARE ASLEEP DO NOT RESPOND)"
 
-                
-
-                
-
-                
-                with open('messages.json', 'w') as w:
-                    json.dump(self.messages, w, indent=2)
             except sr.UnknownValueError:
                 print("Unable to understand speech")
             except sr.RequestError as e:
