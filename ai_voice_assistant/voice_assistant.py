@@ -97,34 +97,34 @@ class AIVoiceAssistant:
             try:
                 text = recognizer.recognize_google(audio_data)
 
-                print(f"Transcription: {text}")
+                print(f"{text}")
 
                 if self.is_awake:
                     self.add_message('user', text)
                     if self.sleep_word in text.lower():
                         text_to_speak = self.llm.run_gpt(messages=self.messages, model=self.model)
-                        print(text_to_speak)
+                        print(f"AI: {text_to_speak}")
                         self.tts.run_speech(text_to_speak, self.language)
                         self.is_awake = False
                     else:
                         text_to_speak = self.llm.run_gpt(messages=self.messages, model=self.model)
-                        print(text_to_speak)
+                        print(f"AI: {text_to_speak}")
                         self.tts.run_speech(text_to_speak, self.language)
                     self.add_message('assistant', text_to_speak)
                 else:
                     if self.wake_word in text.lower():
-                        self.messages = self.messages[:1]
                         self.add_message('user', text)
                         text_to_speak = self.llm.run_gpt(messages=self.messages, model=self.model)
-                        print(text_to_speak)
+                        print(f"AI: {text_to_speak}")
                         self.tts.run_speech(text_to_speak, self.language)
                         self.is_awake = True
                         self.add_message('assistant', text_to_speak)
                     else:
-                        text_to_speak = "(YOU ARE ASLEEP DO NOT RESPOND)"
+                        text_to_speak = ""
 
             except sr.UnknownValueError:
-                print("Unable to understand speech")
+                #print("Unable to understand speech")
+                pass
             except sr.RequestError as e:
                 print(f"Could not transcribe audio; {e}")
     
@@ -133,7 +133,7 @@ class AIVoiceAssistant:
         voiced_frames = []
         triggered = False
         print("Listening...")
-        print(f"device_index: {self.device_index}\ndevice_name: {self.device_name}")
+        #print(f"device_index: {self.device_index}\ndevice_name: {self.device_name}")
         try:
             while True:
                 chunk = self.stream.read(self.CHUNK_SIZE)
@@ -142,7 +142,7 @@ class AIVoiceAssistant:
                 if not triggered:
                     ring_buffer.append(chunk)
                     if len([frame for frame in ring_buffer if self.vad.is_speech(frame, self.RATE)]) > 0.9 * ring_buffer.maxlen:
-                        print("Start Recording")
+                        #print("Start Recording")
                         triggered = True
                         voiced_frames = list(ring_buffer)
                         ring_buffer.clear()
@@ -150,7 +150,7 @@ class AIVoiceAssistant:
                     voiced_frames.append(chunk)
                     ring_buffer.append(chunk)
                     if len([frame for frame in ring_buffer if not self.vad.is_speech(frame, self.RATE)]) > 0.9 * ring_buffer.maxlen:
-                        print("End Recording")
+                        #print("End Recording")
                         triggered = False
                         self.save_and_process(voiced_frames)
                         voiced_frames = []
@@ -161,7 +161,7 @@ class AIVoiceAssistant:
     
     def save_and_process(self, voiced_frames):
         audio_data = self.save_speech(voiced_frames, self.RATE)
-        print('saved speech')
+        #print('saved speech')
         self.transcribe_audio(audio_data)
 
 class TextToSpeech:
@@ -190,7 +190,8 @@ class LargeLanguageModelAPI:
         
         response = openai.ChatCompletion.create(
         model=model,  
-        messages=messages
+        messages=messages,
+        temperature=0.001
         )
 
         return response['choices'][0]['message']['content']
