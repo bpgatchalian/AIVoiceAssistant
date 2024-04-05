@@ -6,6 +6,8 @@ import speech_recognition as sr
 import io
 import os
 import openai
+import queue
+import threading
 from gtts import gTTS
 from playsound import playsound
 from dotenv import load_dotenv
@@ -13,19 +15,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class AIVoiceAssistant:
-    def __init__(self, 
-                 vad_mode=1, 
-                 item_limit=None, 
-                 system_prompt="You are an AI Assistant.", 
-                 channels=1, 
-                 rate=16000, 
-                 chunk_duration_ms=30, 
-                 padding_duration_ms=500, 
-                 model='gpt-3.5-turbo', 
-                 language='en',
-                 wake_word="",
-                 sleep_word=""):
-        
+    def __init__(self, vad_mode=1, item_limit=None, system_prompt="You are an AI Assistant.",
+                 channels=1, rate=16000, chunk_duration_ms=30, padding_duration_ms=500, model='gpt-3.5-turbo', 
+                 language='en', wake_word="", sleep_word=""):
         self.tts = TextToSpeech()
         self.llm = LargeLanguageModelAPI()
         self.vad = webrtcvad.Vad(vad_mode)
@@ -51,7 +43,8 @@ class AIVoiceAssistant:
         self.wake_word = wake_word
         self.sleep_word = sleep_word
         if self.wake_word == "":
-            self.is_awake=True
+            self.is_awake = True
+        self.speech_segments_queue = queue.Queue()
 
     def find_microphone(self):
         keywords = ["Microphone", "Mic", "Input", "Line In"]
@@ -61,24 +54,20 @@ class AIVoiceAssistant:
             for i in range(p.get_device_count()):
                 dev = p.get_device_info_by_index(i)
                 if keyword.lower() in dev['name'].lower():
-                    return i, dev['name'] 
+                    return i, dev['name']
                 
         return None, "No matching device found."
 
     def add_message(self, role, content):
         self.messages.append({"role": role, "content": content})
 
-        if self.item_limit is None:
-            return
-        
-        system_messages = [message for message in self.messages if message['role'] == 'system']
+        if self.item_limit is not None:
+            system_messages = [message for message in self.messages if message['role'] == 'system']
+            adjusted_limit = self.item_limit - len(system_messages)
+            other_messages = [message for message in self.messages if message['role'] != 'system']
 
-        adjusted_limit = self.item_limit - len(system_messages)
-
-        other_messages = [message for message in self.messages if message['role'] != 'system']
-
-        if len(other_messages) > adjusted_limit:
-            self.messages = system_messages + other_messages[-adjusted_limit:]
+            if len(other_messages) > adjusted_limit:
+                self.messages = system_messages + other_messages[-adjusted_limit:]
 
     def save_speech(self, voiced_frames, sample_rate):
         buffer = io.BytesIO()
@@ -96,7 +85,6 @@ class AIVoiceAssistant:
             audio_data = recognizer.record(source)
             try:
                 text = recognizer.recognize_google(audio_data)
-
                 print(f"{text}")
 
                 if self.is_awake:
@@ -123,17 +111,15 @@ class AIVoiceAssistant:
                         text_to_speak = ""
 
             except sr.UnknownValueError:
-                #print("Unable to understand speech")
                 pass
             except sr.RequestError as e:
                 print(f"Could not transcribe audio; {e}")
-    
+
     def listen(self):
         ring_buffer = collections.deque(maxlen=self.NUM_PADDING_CHUNKS)
         voiced_frames = []
         triggered = False
         print("Listening...")
-        #print(f"device_index: {self.device_index}\ndevice_name: {self.device_name}")
         try:
             while True:
                 chunk = self.stream.read(self.CHUNK_SIZE)
@@ -141,27 +127,34 @@ class AIVoiceAssistant:
                 
                 if not triggered:
                     ring_buffer.append(chunk)
-                    if len([frame for frame in ring_buffer if self.vad.is_speech(frame, self.RATE)]) > 0.9 * ring_buffer.maxlen:
-                        #print("Start Recording")
+                    num_voiced = len([frame for frame in ring_buffer if self.vad.is_speech(frame, self.RATE)])
+                    if num_voiced > 0.9 * ring_buffer.maxlen:
                         triggered = True
                         voiced_frames = list(ring_buffer)
                         ring_buffer.clear()
                 else:
                     voiced_frames.append(chunk)
                     ring_buffer.append(chunk)
-                    if len([frame for frame in ring_buffer if not self.vad.is_speech(frame, self.RATE)]) > 0.9 * ring_buffer.maxlen:
-                        #print("End Recording")
+                    num_unvoiced = len([frame for frame in ring_buffer if not self.vad.is_speech(frame, self.RATE)])
+                    if num_unvoiced > 0.9 * ring_buffer.maxlen:
                         triggered = False
-                        self.save_and_process(voiced_frames)
+                        self.speech_segments_queue.put(voiced_frames)
+                        threading.Thread(target=self.process_queue).start()
                         voiced_frames = []
         finally:
             self.stream.stop_stream()
             self.stream.close()
             self.audio.terminate()
     
+    def process_queue(self):
+        while not self.speech_segments_queue.empty():
+            voiced_frames = self.speech_segments_queue.get()
+            audio_buffer = self.save_speech(voiced_frames, self.RATE)
+            self.transcribe_audio(audio_buffer)
+            self.speech_segments_queue.task_done()
+
     def save_and_process(self, voiced_frames):
         audio_data = self.save_speech(voiced_frames, self.RATE)
-        #print('saved speech')
         self.transcribe_audio(audio_data)
 
 class TextToSpeech:
