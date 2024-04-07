@@ -15,9 +15,19 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class AIVoiceAssistant:
-    def __init__(self, vad_mode=1, item_limit=None, system_prompt="You are an AI Assistant.",
-                 channels=1, rate=16000, chunk_duration_ms=30, padding_duration_ms=500, model='gpt-3.5-turbo', 
-                 language='en', wake_word="", sleep_word=""):
+    def __init__(self, 
+                 vad_mode=1, 
+                 item_limit=None, 
+                 system_prompt="You are an AI Assistant.",
+                 channels=1, 
+                 rate=16000,
+                 chunk_duration_ms=30, 
+                 padding_duration_ms=300, 
+                 model='gpt-3.5-turbo', 
+                 language='en', 
+                 wake_word="", 
+                 sleep_word=""
+                 ):
         self.tts = TextToSpeech()
         self.llm = LargeLanguageModelAPI()
         self.vad = webrtcvad.Vad(vad_mode)
@@ -172,9 +182,6 @@ class TextToSpeech:
 
         os.remove(audio_file)
     
-    def openai_tts(self):
-        pass
-
 class LargeLanguageModelAPI:
 
     def __init__(self):
