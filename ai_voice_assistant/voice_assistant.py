@@ -92,19 +92,19 @@ class AIVoiceAssistant:
                     if self.sleep_word in text.lower():
                         text_to_speak = self.llm.run_gpt(messages=self.messages, model=self.model)
                         print(f"AI: {text_to_speak}")
-                        self.tts.run_speech(text_to_speak, self.language)
+                        self.tts.google_tts(text_to_speak, self.language)
                         self.is_awake = False
                     else:
                         text_to_speak = self.llm.run_gpt(messages=self.messages, model=self.model)
                         print(f"AI: {text_to_speak}")
-                        self.tts.run_speech(text_to_speak, self.language)
+                        self.tts.google_tts(text_to_speak, self.language)
                     self.add_message('assistant', text_to_speak)
                 else:
                     if self.wake_word in text.lower():
                         self.add_message('user', text)
                         text_to_speak = self.llm.run_gpt(messages=self.messages, model=self.model)
                         print(f"AI: {text_to_speak}")
-                        self.tts.run_speech(text_to_speak, self.language)
+                        self.tts.google_tts(text_to_speak, self.language)
                         self.is_awake = True
                         self.add_message('assistant', text_to_speak)
                     else:
@@ -161,7 +161,7 @@ class TextToSpeech:
     def __init__(self) -> None:
         pass
 
-    def run_speech(self, text_to_speak, language):
+    def google_tts(self, text_to_speak, language):
 
         gtts_obj = gTTS(text=text_to_speak, lang=language, slow=False)
 
@@ -171,6 +171,9 @@ class TextToSpeech:
         playsound(audio_file)
 
         os.remove(audio_file)
+    
+    def openai_tts(self):
+        pass
 
 class LargeLanguageModelAPI:
 
