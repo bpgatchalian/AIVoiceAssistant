@@ -5,7 +5,7 @@ import collections
 import speech_recognition as sr
 import io
 import os
-import openai
+from openai import OpenAI
 import queue
 import threading
 from gtts import gTTS
@@ -175,17 +175,15 @@ class TextToSpeech:
 class LargeLanguageModelAPI:
 
     def __init__(self):
-        self.openai_key = os.getenv('OPENAI_API_KEY')
-    
+        self.openai_api_key = os.getenv('OPENAI_API_KEY')
+        self.client = OpenAI(api_key=self.openai_api_key)
+
     def run_gpt(self, messages, model):
-
-        openai.api_key = self.openai_key
         
-        response = openai.ChatCompletion.create(
-        model=model,  
+        response = self.client.chat.completions.create(
+        model=model,
         messages=messages,
-        temperature=0.001
+        temperature=0.0001
         )
-
-        return response['choices'][0]['message']['content']
-
+        
+        return response.choices[0].message.content
